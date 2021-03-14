@@ -23,3 +23,6 @@ set_target_properties(lemons
     PROPERTIES
     CXX_STANDARD 17
     C_STANDARD 11)
+
+
+install(TARGETS lemons)
