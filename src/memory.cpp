@@ -6,6 +6,7 @@
 #include "colors.h"
 #include "utils.h"
 
+static const char *icon = "\uf538";
 
 Memory::Memory(ev::loop_ref &loop) :
     _timer(loop)
@@ -37,7 +38,7 @@ std::string Memory::name() const
 std::string Memory::render() const
 {
     std::stringstream ss;
-    ss << "Mem: ";
+    ss << icon << " ";
 
     if (_last_percent < 75) {
         ss << fg_color(bright_green);

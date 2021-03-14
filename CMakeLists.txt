@@ -14,6 +14,7 @@ set(LEMON_SRCS
     src/battery.cpp
     src/diskusage.cpp
     src/memory.cpp
+    src/cpuusage.cpp
     )
 
 add_executable(lemons ${LEMON_SRCS})

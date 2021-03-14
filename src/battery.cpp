@@ -6,9 +6,12 @@
 #include "colors.h"
 #include "utils.h"
 
-const char * status[] = {
-    "\uf244"
+static const char * status[] = {
+    "\uf244", "\uf243", "\uf242",
+    "\uf241", "\uf240"
 };
+
+static const char * chrg = "\uf1e6";
 
 Battery::Battery(ev::loop_ref &loop)
 {
@@ -30,8 +33,23 @@ std::string Battery::render() const
 {
     std::stringstream ret;
 
-    ret << status[0] << " %{F";
+    if (_last_status == "Discharging") {
+        if (_last_percent < 5) {
+            ret << status[0];
+        } else if (_last_percent < 35) {
+            ret << status[1];
+        } else if (_last_percent < 60) {
+            ret << status[2];
+        } else if (_last_percent < 80) {
+            ret << status[3];
+        } else {
+            ret << status[4];
+        }
+    } else {
+        ret << chrg;
+    }
 
+    ret << " %{F";
     if (_last_percent < 5) {
         ret << bright_red;
     } else if (_last_percent < 30) {
@@ -59,10 +77,5 @@ void Battery::timer_cb(ev::timer &t, int revent)
     }
 
     _last_percent = (current_cap / full_cap) * 100.;
-
-    if (status == "Discharging") {
-        _last_status = "BAT";
-    } else {
-        _last_status = "CHR";
-    }
+    _last_status = status;
 }

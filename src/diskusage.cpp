@@ -6,6 +6,8 @@
 #include "colors.h"
 #include "utils.h"
 
+static const char *icon = "\uf0a0";
+
 DiskUsage::DiskUsage(ev::loop_ref loop, const std::string &path) :
     Widget(), _path(path), _timer(loop)
 {
@@ -30,7 +32,7 @@ std::string DiskUsage::render() const
 {
     std::stringstream ss;
 
-    ss << "Disk: ";
+    ss << icon << " ";
 
     if (_last_percent < 10.) {
         ss << fg_color(neutral_red);

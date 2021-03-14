@@ -10,6 +10,7 @@
 #include "battery.h"
 #include "diskusage.h"
 #include "memory.h"
+#include "cpuusage.h"
 
 struct Interrupt {
     void operator()(ev::sig &sig, int event)
@@ -34,6 +35,7 @@ int main()
     reg->add_widget(std::make_shared<Battery>(loop));
     reg->add_widget(std::make_shared<DiskUsage>(loop));
     reg->add_widget(std::make_shared<Memory>(loop));
+    reg->add_widget(std::make_shared<CpuUsage>(loop));
 
     auto render = std::make_shared<Render>(loop, reg);
 

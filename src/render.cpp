@@ -49,7 +49,6 @@ void Render::operator()(Process *p, int revents)
 void Render::timer_cb(ev::timer &t, int revents)
 {
     static const std::string fg_color_val = fg_color(foreground);
-    static const std::string separator = fg_color(faded_aqua) + "||" + fg_color_val;
     std::stringstream output;
 
     // left
@@ -62,10 +61,12 @@ void Render::timer_cb(ev::timer &t, int revents)
     // right
     output << "%{r}" << fg_color_val
            << _reg->widget("battery")->render()
-           << " " << separator << " "
+           << " "
            << _reg->widget("disk")->render()
-           << " " << separator << " "
+           << " "
            << _reg->widget("memory")->render()
+           << " "
+           << _reg->widget("load")->render()
               ;
 
     output << "\n";
