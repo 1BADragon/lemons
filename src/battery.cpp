@@ -55,7 +55,7 @@ std::string Battery::render() const
     } else if (_last_percent < 30) {
         ret << bright_yellow;
     } else {
-        ret << neutral_green;
+        ret << bright_green;
     }
 
     ret << "}" << std::fixed << std::setprecision(2) << _last_percent

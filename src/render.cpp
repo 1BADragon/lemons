@@ -42,8 +42,11 @@ void Render::operator()(Process *p, int revents)
 {
     auto data = p->read();
 
-    std::clog << "[lemonbar]: " << std::string(data.begin(), data.end()) << std::endl;
+    data.pop_back(); // delete the newline
 
+    std::clog << "[lemonbar]: " << data << std::endl;
+
+    _reg->route_cmd(data);
 }
 
 void Render::timer_cb(ev::timer &t, int revents)
@@ -52,7 +55,9 @@ void Render::timer_cb(ev::timer &t, int revents)
     std::stringstream output;
 
     // left
-    output << "%{l}" << fg_color_val;
+    output << "%{l}" << fg_color_val
+           << _reg->widget("launcher")->render();
+              ;
 
     // center
     output << "%{c}" << fg_color_val
@@ -61,12 +66,12 @@ void Render::timer_cb(ev::timer &t, int revents)
     // right
     output << "%{r}" << fg_color_val
            << _reg->widget("battery")->render()
+           << " " << _reg->widget("disk")->render()
+           << " " << _reg->widget("memory")->render()
+           << " " << _reg->widget("load")->render()
+           << " " << _reg->widget("weather")->render()
            << " "
-           << _reg->widget("disk")->render()
-           << " "
-           << _reg->widget("memory")->render()
-           << " "
-           << _reg->widget("load")->render()
+           << fg_color(foreground) << _reg->widget("power")->render()
               ;
 
     output << "\n";
@@ -76,6 +81,11 @@ void Render::timer_cb(ev::timer &t, int revents)
     //std::clog << render_str;
 
     _lemonbar.write({render_str.begin(), render_str.end()});
+}
+
+void Render::kill()
+{
+    _lemonbar.kill();
 }
 
 

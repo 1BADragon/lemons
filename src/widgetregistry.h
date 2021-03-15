@@ -13,8 +13,11 @@ public:
     void add_widget(std::shared_ptr<Widget> w);
     std::shared_ptr<Widget> widget(const std::string &s) const;
 
+    bool route_cmd(const std::string &s);
+
 private:
     std::unordered_map<std::string, std::shared_ptr<Widget>> _widgets;
+    std::unordered_map<std::string, std::shared_ptr<Widget>> _cmds;
 };
 
 #endif // WIDGETREGISTRY_H

@@ -1,6 +1,8 @@
 #include <iostream>
 #include <functional>
 #include <memory>
+#include <unistd.h>
+#include <sys/inotify.h>
 
 #include <ev++.h>
 
@@ -11,6 +13,9 @@
 #include "diskusage.h"
 #include "memory.h"
 #include "cpuusage.h"
+#include "weather.h"
+#include "power.h"
+#include "launcher.h"
 
 struct Interrupt {
     void operator()(ev::sig &sig, int event)
@@ -19,7 +24,7 @@ struct Interrupt {
     }
 };
 
-int main()
+int main(int argc, char **argv)
 {
     auto loop = ev::get_default_loop();
 
@@ -36,9 +41,13 @@ int main()
     reg->add_widget(std::make_shared<DiskUsage>(loop));
     reg->add_widget(std::make_shared<Memory>(loop));
     reg->add_widget(std::make_shared<CpuUsage>(loop));
+    reg->add_widget(std::make_shared<Weather>(loop));
+    reg->add_widget(std::make_shared<Power>());
+    reg->add_widget(std::make_shared<Launcher>());
 
     auto render = std::make_shared<Render>(loop, reg);
 
     loop.run();
+
     return 0;
 }

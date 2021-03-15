@@ -15,6 +15,8 @@ public:
 
     void operator()(Process *p, int revents);
     void timer_cb(ev::timer &t, int revents);
+
+    void kill();
 private:
     Process _lemonbar;
     ev::timer _timer;

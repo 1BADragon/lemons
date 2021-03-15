@@ -18,13 +18,15 @@ const char * Process::ProcessError::what() const noexcept
 }
 
 Process::Process(const ev::loop_ref &loop) :
-    _path(), _args(), _io_cb(), _pid(-1), _child_out(loop), _child_in(loop)
+    _path(), _args(), _io_cb(), _pid(-1), _child_out(loop), _child_in(loop),
+    _child_watcher(loop), _loop(loop), _state(INIT)
 {
 
 }
 
 Process::Process(const ev::loop_ref &loop, const std::string &path, const std::vector<std::string> &args) :
-    _path(path), _args(args), _io_cb(), _pid(-1), _child_out(loop), _child_in(loop)
+    _path(path), _args(args), _io_cb(), _pid(-1), _child_out(loop), _child_in(loop),
+    _child_watcher(loop), _loop(loop), _state(INIT)
 {
 
 }
@@ -99,6 +101,12 @@ void Process::run()
 
         _child_in.close(Pipe::READ);
         _child_out.close(Pipe::WRITE);
+
+        _child_watcher.set<Process, &Process::child_cb>(this);
+        _child_watcher.set(_pid);
+        _child_watcher.start();
+
+        _state = RUNNING;
     }
 }
 
@@ -133,4 +141,43 @@ void Process::kill()
 {
     ::kill(_pid, SIGKILL);
     waitpid(_pid, nullptr, 0);
+}
+
+Process::State Process::state() const
+{
+    return _state;
+}
+
+int Process::wait_for_exit()
+{
+    if (_state != RUNNING) {
+        throw ProcessError("Can only wait on running process");
+    }
+
+    _state = WAITING;
+
+    while (_state != STOPPED) {
+        _loop.run();
+    }
+
+    return _exit_code;
+}
+
+int Process::exit_code() const
+{
+    return _exit_code;
+}
+
+void Process::child_cb(ev::child &c, int revents)
+{
+    if (_state == WAITING) {
+        _loop.break_loop();
+    }
+
+    _state = STOPPED;
+    _exit_code = c.rstatus;
+
+    if (_io_cb) {
+        _io_cb(this, revents);
+    }
 }

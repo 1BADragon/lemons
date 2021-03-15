@@ -35,11 +35,11 @@ std::string DiskUsage::render() const
     ss << icon << " ";
 
     if (_last_percent < 10.) {
-        ss << fg_color(neutral_red);
+        ss << fg_color(bright_red);
     } else if (_last_percent < 30.) {
-        ss << fg_color(neutral_orange);
+        ss << fg_color(bright_orange);
     } else {
-        ss << fg_color(neutral_green);
+        ss << fg_color(bright_green);
     }
 
     ss << std::fixed << std::setprecision(2) << _last_percent

@@ -23,6 +23,13 @@ public:
         std::string _msg;
     };
 
+    enum State {
+        INIT,
+        RUNNING,
+        WAITING,
+        STOPPED
+    };
+
     Process(const ev::loop_ref &loop);
     Process(const ev::loop_ref &loop, const std::string &path, const std::vector<std::string> &args = {});
 
@@ -56,6 +63,10 @@ public:
                            object, std::placeholders::_1, std::placeholders::_2);
     }
 
+    State state() const;
+    int wait_for_exit();
+    int exit_code() const;
+
 private:
     std::string _path;
     std::vector<std::string> _args;
@@ -65,6 +76,12 @@ private:
     int _pid;
     Pipe _child_out;
     Pipe _child_in;
+    ev::child _child_watcher;
+    ev::loop_ref _loop;
+    State _state;
+    int _exit_code;
+
+    void child_cb(ev::child &c, int revents);
 };
 
 #endif // PROCESS_H
