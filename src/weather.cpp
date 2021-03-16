@@ -22,19 +22,19 @@ static const char *cloud_shower_heavy = "\uf740";
 
 // This will grow as new weather types are discovered
 std::unordered_map<std::string, const char *> icons = {
+    {"Partly Cloudy", cloud_sun},
     {"Mostly Cloudy", cloud_sun},
+    {"Mostly Clear", sunny},
     {"Cloudy", cloud},
     {"Light Rain", cloud_rain},
 };
-
-static double c_to_f(double c);
 
 Weather::Weather(ev::loop_ref &loop) :
     _loop(loop), _timer_watcher(loop)
 {
     _timer_watcher.set<Weather, &Weather::timer_cb>(this);
 
-    _timer_watcher.start(0, 3600); // hourly
+    _timer_watcher.start(0, 900); // hourly
 }
 
 std::string Weather::name() const
@@ -57,7 +57,7 @@ void Weather::timer_cb(ev::timer &t, int revents)
     Process p(_loop);
 
     p.set_path("curl");
-    p << "curl" << "-s" << url;
+    p << "-s" << url;
     p.run();
 
     p.wait_for_exit();
@@ -88,7 +88,7 @@ void Weather::timer_cb(ev::timer &t, int revents)
     cJSON_Delete(obj);
 }
 
-static double c_to_f(double c)
+double Weather::c_to_f(double c)
 {
     return (c * 9./5.) + 32.;
 }

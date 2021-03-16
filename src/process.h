@@ -42,6 +42,8 @@ public:
     void operator()(Pipe *p, int revent);
 
     void run();
+    static int exec(const ev::loop_ref &loop, const std::string &path,
+                    const std::vector<std::string> &args = {});
 
     lem::Bytes read(size_t amount = 0);
     void write(const lem::Bytes &data);

@@ -8,7 +8,6 @@
 #include "utils.h"
 
 static const char *lemonbar_args[] = {
-    "lemonbar",
     "-f", "Font Awesome 5 Free:size=16",
     "-f", "Font Awesome 5 Brands:size=16",
     "-f", "Font Awesome 5 Free Solid:size=16",
@@ -46,17 +45,32 @@ void Render::operator()(Process *p, int revents)
 
     std::clog << "[lemonbar]: " << data << std::endl;
 
-    _reg->route_cmd(data);
+    if (_dialog_stack.size()) {
+        _dialog_stack.back()->handle_command(data);
+    } else {
+        _reg->route_cmd(data);
+    }
 }
 
 void Render::timer_cb(ev::timer &t, int revents)
+{
+    redraw();
+}
+
+void Render::kill()
+{
+    _lemonbar.kill();
+}
+
+void Render::draw_standard()
 {
     static const std::string fg_color_val = fg_color(foreground);
     std::stringstream output;
 
     // left
     output << "%{l}" << fg_color_val
-           << _reg->widget("launcher")->render();
+           << _reg->widget("launcher")->render()
+           << "  " << _reg->widget("i3ipc")->render()
               ;
 
     // center
@@ -83,9 +97,44 @@ void Render::timer_cb(ev::timer &t, int revents)
     _lemonbar.write({render_str.begin(), render_str.end()});
 }
 
-void Render::kill()
+void Render::draw_dialog()
 {
-    _lemonbar.kill();
+    std::stringstream ss;
+
+    std::shared_ptr<Widget> curr = _dialog_stack.back();
+
+    ss << curr->render();
+    ss << "\n";
+
+    _lemonbar.write(ss.str());
+}
+
+void Render::redraw()
+{
+    if (_dialog_stack.size()) {
+        draw_dialog();
+    } else {
+        draw_standard();
+    }
+}
+
+void Render::push_dialog(std::shared_ptr<Widget> w)
+{
+    _dialog_stack.push_back(w);
+    redraw();
+}
+
+void Render::pop_dialog(Widget* w)
+{
+    for (auto it = _dialog_stack.begin(); it != _dialog_stack.end(); ) {
+        if (it->get() == w) {
+            it = _dialog_stack.erase(it);
+        } else {
+            ++it;
+        }
+    }
+
+    redraw();
 }
 
 

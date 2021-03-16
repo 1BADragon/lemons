@@ -20,6 +20,8 @@ private:
 
     double _temp;
     std::string _icon;
+
+    double c_to_f(double c);
 };
 
 #endif // WEATHER_H

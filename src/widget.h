@@ -1,6 +1,8 @@
 #ifndef WIDGET_H
 #define WIDGET_H
 
+#include <iostream>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <cstring>
@@ -34,11 +36,31 @@ public:
         std::string _msg;
     };
 
+    class Log : public std::stringstream
+    {
+    public:
+        virtual ~Log()
+        {
+            std::clog << this->str() << std::endl;
+        }
+    private:
+        friend class Widget;
+        Log(const std::string &name) {
+            *this << "[" << name << "]: ";
+        }
+    };
+
     virtual std::string render() const = 0;
     virtual std::string name() const = 0;
 
     virtual bool handle_command(const std::string __attribute__((unused)) &cmd) {return true;}
     virtual bool add_commands(std::vector<std::string> &cmds) const {return true;}
+
+protected:
+    Log log() const
+    {
+        return Log(name());
+    }
 
 };
 

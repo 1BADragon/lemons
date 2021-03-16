@@ -9,7 +9,7 @@ find_library(LIBCJSON_PATH cjson)
 set(LEMON_SRCS
     src/main.cpp src/render.cpp src/pipe.cpp src/process.cpp src/widgetregistry.cpp
     src/datetime.cpp src/battery.cpp src/diskusage.cpp src/memory.cpp
-    src/cpuusage.cpp src/weather.cpp src/power.cpp src/launcher.cpp
+    src/cpuusage.cpp src/weather.cpp src/power.cpp src/launcher.cpp src/i3ipc.cpp
     )
 
 add_executable(lemons ${LEMON_SRCS})

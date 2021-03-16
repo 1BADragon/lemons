@@ -16,6 +16,7 @@
 #include "weather.h"
 #include "power.h"
 #include "launcher.h"
+#include "i3ipc.h"
 
 struct Interrupt {
     void operator()(ev::sig &sig, int event)
@@ -23,6 +24,13 @@ struct Interrupt {
         sig.loop.break_loop(ev::ALL);
     }
 };
+
+static std::shared_ptr<Render> g_render;
+
+std::shared_ptr<Render> render()
+{
+    return g_render;
+}
 
 int main(int argc, char **argv)
 {
@@ -42,10 +50,11 @@ int main(int argc, char **argv)
     reg->add_widget(std::make_shared<Memory>(loop));
     reg->add_widget(std::make_shared<CpuUsage>(loop));
     reg->add_widget(std::make_shared<Weather>(loop));
-    reg->add_widget(std::make_shared<Power>());
+    reg->add_widget(std::make_shared<Power>(loop));
     reg->add_widget(std::make_shared<Launcher>());
+    reg->add_widget(std::make_shared<I3ipc>(loop));
 
-    auto render = std::make_shared<Render>(loop, reg);
+    g_render = std::make_shared<Render>(loop, reg);
 
     loop.run();
 

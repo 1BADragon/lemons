@@ -1,0 +1,191 @@
+#include <cstdlib>
+#include <sstream>
+#include <unistd.h>
+
+#include <sys/socket.h>
+#include <sys/un.h>
+#include <i3/ipc.h>
+
+#include "i3ipc.h"
+#include "utils.h"
+
+static const char *i3ipc_env = "I3SOCK";
+
+I3ipc::I3ipc(ev::loop_ref &loop) :
+    _loop(loop)
+{
+    _i3sock_path = secure_getenv(i3ipc_env);
+
+    _io_watcher.set(open_ipc_socket(), ev::READ);
+    _io_watcher.set<I3ipc, &I3ipc::ipc_cb>(this);
+    _io_watcher.set(loop);
+    _io_watcher.start();
+
+    _state = READ_HEADER;
+    _read_at = 0;
+
+    subscribe();
+    get_workspaces();
+}
+
+I3ipc::~I3ipc()
+{
+    _io_watcher.stop();
+    close(_io_watcher.fd);
+}
+
+std::string I3ipc::name() const
+{
+    return "i3ipc";
+}
+
+std::string I3ipc::render() const
+{
+    std::stringstream ss;
+
+    for (auto &w : _workspaces) {
+        if (w.active) {
+            ss << button(w.name, "ws", dark0_hard, bright_green);
+        } else {
+            ss << button(w.name, "ws", dark0_hard, foreground);
+        }
+        ss << " ";
+    }
+
+    log() << ss.str();
+
+    return ss.str();
+}
+
+void I3ipc::ipc_cb(ev::io &i, int revents)
+{
+    int rc;
+    switch (_state) {
+    case READ_HEADER:
+        rc = read(i.fd, reinterpret_cast<char *>(&_hdr) + _read_at,
+                  sizeof(i3_ipc_header) - _read_at);
+        if (rc <= 0) {
+            throw Error("Failed reading from IPC");
+        }
+        _read_at += rc;
+
+        if (_read_at == sizeof(i3_ipc_header)) {
+            _read_at = 0;
+            _state = READ_BODY;
+            _body.resize(_hdr.size);
+            if (strncmp(I3_IPC_MAGIC, _hdr.magic, 6)) {
+                throw Error(std::string("Bad i3 magic value: ") +
+                            std::string(_hdr.magic, 6));
+            }
+        }
+        break;
+    case READ_BODY:
+        rc = read(i.fd, _body.data() + _read_at, _body.size() - _read_at);
+        if (rc <= 0) {
+            throw Error("Failed reading from IPC");
+        }
+        _read_at += rc;
+
+        if (_read_at == _body.size()) {
+            _read_at = 0;
+            _state = READ_HEADER;
+            handle_ipc_msg();
+            ::render()->redraw();
+        }
+        break;
+    }
+}
+
+int I3ipc::open_ipc_socket()
+{
+    struct sockaddr_un addr;
+    int fd = socket(AF_UNIX, SOCK_STREAM, 0);
+
+    if (-1 == fd) {
+        throw Error("Unable to open ipc socket", errno);
+    }
+
+    addr.sun_family = AF_UNIX;
+    strncpy(addr.sun_path, _i3sock_path.c_str(), sizeof(addr.sun_path) - 1);
+
+    if (connect(fd, reinterpret_cast<sockaddr*>(&addr), sizeof(struct sockaddr_un))) {
+        throw Error("Unable to connect", errno);
+    }
+
+    return fd;
+}
+
+void I3ipc::subscribe()
+{
+    std::string payload(sizeof(i3_ipc_header), '\0');
+    i3_ipc_header *hdr = reinterpret_cast<i3_ipc_header *>(payload.data());
+
+    strncpy(hdr->magic, I3_IPC_MAGIC, sizeof(hdr->magic));
+    hdr->type = I3_IPC_MESSAGE_TYPE_SUBSCRIBE;
+
+    std::string message = "[ \"workspace\" ]";
+    hdr->size = message.size();
+
+    payload += message;
+    write(_io_watcher.fd, payload.data(), payload.size());
+}
+
+void I3ipc::get_workspaces()
+{
+    i3_ipc_header hdr;
+
+    strncpy(hdr.magic, I3_IPC_MAGIC, sizeof(hdr.magic));
+    hdr.type = I3_IPC_MESSAGE_TYPE_GET_WORKSPACES;
+    hdr.size = 0;
+
+    write_all(_io_watcher.fd, &hdr, sizeof(i3_ipc_header));
+}
+
+void I3ipc::handle_ipc_msg()
+{
+    if (_hdr.type & I3_IPC_EVENT_MASK) {
+        handle_event_msg();
+    }
+
+    switch (_hdr.type) {
+    case I3_IPC_REPLY_TYPE_WORKSPACES:
+        workspace_msg();
+        break;
+    default:
+        break;
+    }
+}
+
+void I3ipc::workspace_msg()
+{
+    std::unique_ptr<cJSON, cJSON_Deleter> body(cJSON_Parse(_body.c_str()));
+    cJSON *at;
+
+    cJSON_ArrayForEach(at, body.get()) {
+        std::string name(cJSON_GetStringValue(cJSON_GetObjectItem(at, "name")));
+        bool visible = cJSON_IsTrue(cJSON_GetObjectItem(at, "visible"));
+
+        _workspaces.push_back({name, visible});
+    }
+
+}
+
+void I3ipc::handle_event_msg()
+{
+    switch (_hdr.type) {
+    case I3_IPC_EVENT_WORKSPACE:
+        workspace_event();
+        break;
+    }
+}
+
+void I3ipc::workspace_event()
+{
+}
+
+void I3ipc::subscribe_msg()
+{
+
+}
+
+

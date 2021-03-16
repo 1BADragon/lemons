@@ -85,6 +85,7 @@ void Process::run()
 
         std::vector<const char *> args;
 
+        args.push_back(_path.c_str());
         for (auto &a : _args) {
             args.push_back(a.c_str());
         }
@@ -108,6 +109,13 @@ void Process::run()
 
         _state = RUNNING;
     }
+}
+
+int Process::exec(const ev::loop_ref &loop, const std::string &path, const std::vector<std::string> &args)
+{
+    Process p(loop, path, args);
+    p.run();
+    return p.wait_for_exit();
 }
 
 lem::Bytes Process::read(size_t amount)
