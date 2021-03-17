@@ -44,12 +44,17 @@ private:
 
     void subscribe_msg();
 
+    void sort_workspaces();
+
     struct Workspace {
+        uint32_t num;
         std::string name;
         bool active;
     };
 
     std::list<Workspace> _workspaces;
+
+    static bool workspace_less(const Workspace &a, const Workspace &b);
 };
 
 #endif // I3IPC_H

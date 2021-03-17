@@ -1,6 +1,8 @@
 #include <cstdlib>
 #include <sstream>
 #include <unistd.h>
+#include <algorithm>
+#include <fcntl.h>
 
 #include <sys/socket.h>
 #include <sys/un.h>
@@ -45,54 +47,60 @@ std::string I3ipc::render() const
 
     for (auto &w : _workspaces) {
         if (w.active) {
-            ss << button(w.name, "ws", dark0_hard, bright_green);
+            ss << button(std::to_string(w.num), "ws", dark0_hard, bright_green);
         } else {
-            ss << button(w.name, "ws", dark0_hard, foreground);
+            ss << button(std::to_string(w.num), "ws", dark0_hard, foreground);
         }
         ss << " ";
     }
-
-    log() << ss.str();
 
     return ss.str();
 }
 
 void I3ipc::ipc_cb(ev::io &i, int revents)
 {
-    int rc;
-    switch (_state) {
-    case READ_HEADER:
-        rc = read(i.fd, reinterpret_cast<char *>(&_hdr) + _read_at,
-                  sizeof(i3_ipc_header) - _read_at);
-        if (rc <= 0) {
-            throw Error("Failed reading from IPC");
-        }
-        _read_at += rc;
-
-        if (_read_at == sizeof(i3_ipc_header)) {
-            _read_at = 0;
-            _state = READ_BODY;
-            _body.resize(_hdr.size);
-            if (strncmp(I3_IPC_MAGIC, _hdr.magic, 6)) {
-                throw Error(std::string("Bad i3 magic value: ") +
-                            std::string(_hdr.magic, 6));
+    while (true) {
+        int rc;
+        switch (_state) {
+        case READ_HEADER:
+            rc = read(i.fd, reinterpret_cast<char *>(&_hdr) + _read_at,
+                      sizeof(i3_ipc_header) - _read_at);
+            if (rc < 0) {
+                if (errno == EAGAIN) {
+                    return;
+                }
+                throw Error("Failed reading from IPC");
             }
-        }
-        break;
-    case READ_BODY:
-        rc = read(i.fd, _body.data() + _read_at, _body.size() - _read_at);
-        if (rc <= 0) {
-            throw Error("Failed reading from IPC");
-        }
-        _read_at += rc;
+            _read_at += rc;
 
-        if (_read_at == _body.size()) {
-            _read_at = 0;
-            _state = READ_HEADER;
-            handle_ipc_msg();
-            ::render()->redraw();
+            if (_read_at == sizeof(i3_ipc_header)) {
+                _read_at = 0;
+                _state = READ_BODY;
+                _body.resize(_hdr.size);
+                if (strncmp(I3_IPC_MAGIC, _hdr.magic, 6)) {
+                    throw Error(std::string("Bad i3 magic value: ") +
+                                std::string(_hdr.magic, 6));
+                }
+            }
+            break;
+        case READ_BODY:
+            rc = read(i.fd, _body.data() + _read_at, _body.size() - _read_at);
+            if (rc < 0) {
+                if (errno == EAGAIN) {
+                    return;
+                }
+                throw Error("Failed reading from IPC");
+            }
+            _read_at += rc;
+
+            if (_read_at == _body.size()) {
+                _read_at = 0;
+                _state = READ_HEADER;
+                handle_ipc_msg();
+                ::render()->update();
+            }
+            break;
         }
-        break;
     }
 }
 
@@ -111,6 +119,12 @@ int I3ipc::open_ipc_socket()
     if (connect(fd, reinterpret_cast<sockaddr*>(&addr), sizeof(struct sockaddr_un))) {
         throw Error("Unable to connect", errno);
     }
+
+    int flags = fcntl(fd, F_GETFL, NULL);
+
+    flags |= O_NONBLOCK;
+
+    fcntl(fd, F_SETFL, flags);
 
     return fd;
 }
@@ -164,10 +178,12 @@ void I3ipc::workspace_msg()
     cJSON_ArrayForEach(at, body.get()) {
         std::string name(cJSON_GetStringValue(cJSON_GetObjectItem(at, "name")));
         bool visible = cJSON_IsTrue(cJSON_GetObjectItem(at, "visible"));
+        uint32_t num = cJSON_GetNumberValue(cJSON_GetObjectItem(at, "num"));
 
-        _workspaces.push_back({name, visible});
+        _workspaces.push_back({num, name, visible});
     }
 
+    sort_workspaces();
 }
 
 void I3ipc::handle_event_msg()
@@ -181,11 +197,65 @@ void I3ipc::handle_event_msg()
 
 void I3ipc::workspace_event()
 {
+    std::unique_ptr<cJSON, cJSON_Deleter> body(cJSON_Parse(_body.c_str()));
+
+    std::string change(cJSON_GetStringValue(cJSON_GetObjectItem(body.get(), "change")));
+
+    if (change == "focus") {
+        uint32_t old_num = cJSON_GetNumberValue(cJSON_GetObjectItem(
+                                                    cJSON_GetObjectItem(body.get(), "old"), "num"));
+        uint32_t new_num = cJSON_GetNumberValue(cJSON_GetObjectItem(
+                                                    cJSON_GetObjectItem(body.get(), "current"), "num"));
+        for (auto &w : _workspaces) {
+            if (w.num == old_num) {
+                w.active = false;
+            }
+
+            if (w.num == new_num) {
+                w.active = true;
+            }
+        }
+
+    } else if (change == "init") {
+        auto curr = cJSON_GetObjectItem(body.get(), "current");
+
+        std::string name(cJSON_GetStringValue(cJSON_GetObjectItem(curr, "name")));
+        uint32_t num = cJSON_GetNumberValue(cJSON_GetObjectItem(curr, "num"));
+
+        for (auto &w: _workspaces) {
+            w.active = false;
+        }
+        _workspaces.push_back({num, name, true});
+    } else if (change == "empty") {
+        auto curr = cJSON_GetObjectItem(body.get(), "current");
+        uint32_t num = cJSON_GetNumberValue(cJSON_GetObjectItem(curr, "num"));
+
+        for (auto it = _workspaces.begin(); it != _workspaces.end(); ) {
+            if (it->num == num) {
+                it = _workspaces.erase(it);
+            } else {
+                ++it;
+            }
+        }
+    }
+
+    sort_workspaces();
+    ::render()->update();
 }
 
 void I3ipc::subscribe_msg()
 {
 
+}
+
+void I3ipc::sort_workspaces()
+{
+    _workspaces.sort(&I3ipc::workspace_less);
+}
+
+bool I3ipc::workspace_less(const I3ipc::Workspace &a, const I3ipc::Workspace &b)
+{
+    return a.num < b.num;
 }
 
 

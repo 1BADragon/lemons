@@ -32,8 +32,6 @@ bool Power::add_commands(std::vector<std::string> &cmds) const
 bool Power::handle_command(const std::string &cmd)
 {
     if (cmd == "power") {
-        std::clog << "Got power command" << std::endl;
-
         auto power_dialog = std::make_shared<Dialog>(_loop);
 
         ::render()->push_dialog(power_dialog);
@@ -68,9 +66,8 @@ std::string Power::Dialog::render() const
        << button("Reboot", "reboot", dark0_hard, foreground)
        << "  "
        << button("Suspend", "suspend", dark0_hard, foreground)
+       << "  \uf011"
           ;
-
-    log() << ss.str() << std::endl;
 
     return ss.str();
 }

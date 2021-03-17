@@ -14,6 +14,7 @@ static const char *lemonbar_args[] = {
     "-f", "Source Code Pro:size=14",
     "-f", "Roboto Medium:size=16",
     "-B", background,
+    "-a", "15",
     nullptr
 };
 
@@ -30,6 +31,10 @@ Render::Render(const ev::loop_ref &loop, std::shared_ptr<WidgetRegistry> reg) :
 
     _lemonbar.set_iocb(this);
     _lemonbar.run();
+
+    _update_trigger.set(loop);
+    _update_trigger.set<Render, &Render::update_cb>(this);
+    _update_trigger.start();
 
     _timer.set(loop);
     _timer.set(0, 1);
@@ -53,6 +58,11 @@ void Render::operator()(Process *p, int revents)
 }
 
 void Render::timer_cb(ev::timer &t, int revents)
+{
+    redraw();
+}
+
+void Render::update_cb(ev::async &a, int revents)
 {
     redraw();
 }
@@ -135,6 +145,11 @@ void Render::pop_dialog(Widget* w)
     }
 
     redraw();
+}
+
+void Render::update()
+{
+    _update_trigger.send();
 }
 
 

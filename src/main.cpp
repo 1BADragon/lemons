@@ -1,4 +1,5 @@
 #include <iostream>
+#include <fstream>
 #include <functional>
 #include <memory>
 #include <unistd.h>
@@ -56,7 +57,14 @@ int main(int argc, char **argv)
 
     g_render = std::make_shared<Render>(loop, reg);
 
-    loop.run();
+    try {
+        loop.run();
+    } catch (std::exception &e) {
+        std::ofstream dump("/tmp/.lemons_dump");
+
+        dump << "Lemons crashed:\n" << e.what();
+        return 1;
+    }
 
     return 0;
 }
