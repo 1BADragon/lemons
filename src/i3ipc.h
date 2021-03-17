@@ -20,6 +20,7 @@ public:
 private:
     ev::loop_ref _loop;
     ev::io _io_watcher;
+    ev::timer _disconnected_timer;
     std::string _i3sock_path;
 
     enum {
@@ -32,7 +33,11 @@ private:
     size_t _read_at;
 
     void ipc_cb(ev::io &i, int revents);
+    void timer_cb(ev::timer &i, int revents);
+
     int open_ipc_socket();
+    void reconnect_socket();
+
     void subscribe();
     void get_workspaces();
 

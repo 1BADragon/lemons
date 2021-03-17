@@ -18,16 +18,10 @@ I3ipc::I3ipc(ev::loop_ref &loop) :
 {
     _i3sock_path = secure_getenv(i3ipc_env);
 
-    _io_watcher.set(open_ipc_socket(), ev::READ);
-    _io_watcher.set<I3ipc, &I3ipc::ipc_cb>(this);
-    _io_watcher.set(loop);
-    _io_watcher.start();
-
     _state = READ_HEADER;
     _read_at = 0;
 
-    subscribe();
-    get_workspaces();
+    reconnect_socket();
 }
 
 I3ipc::~I3ipc()
@@ -43,6 +37,11 @@ std::string I3ipc::name() const
 
 std::string I3ipc::render() const
 {
+
+    if (_io_watcher.fd == -1) {
+        return "I3 disconnected";
+    }
+
     std::stringstream ss;
 
     for (auto &w : _workspaces) {
@@ -65,11 +64,18 @@ void I3ipc::ipc_cb(ev::io &i, int revents)
         case READ_HEADER:
             rc = read(i.fd, reinterpret_cast<char *>(&_hdr) + _read_at,
                       sizeof(i3_ipc_header) - _read_at);
+
+            if (rc == 0) {
+                reconnect_socket();
+                ::render()->update();
+                return;
+            }
+
             if (rc < 0) {
                 if (errno == EAGAIN) {
                     return;
                 }
-                throw Error("Failed reading from IPC");
+                throw Error("Failed reading from IPC", errno);
             }
             _read_at += rc;
 
@@ -85,11 +91,18 @@ void I3ipc::ipc_cb(ev::io &i, int revents)
             break;
         case READ_BODY:
             rc = read(i.fd, _body.data() + _read_at, _body.size() - _read_at);
+
+            if (rc == 0) {
+                reconnect_socket();
+                ::render()->update();
+                return;
+            }
+
             if (rc < 0) {
                 if (errno == EAGAIN) {
                     return;
                 }
-                throw Error("Failed reading from IPC");
+                throw Error("Failed reading from IPC", errno);
             }
             _read_at += rc;
 
@@ -102,6 +115,28 @@ void I3ipc::ipc_cb(ev::io &i, int revents)
             break;
         }
     }
+}
+
+void I3ipc::timer_cb(ev::timer &i, int revents)
+{
+    int fd = open_ipc_socket();
+
+    if (fd == -1) {
+        return;
+    }
+
+    _disconnected_timer.stop();
+
+    get_workspaces();
+
+    _io_watcher.set(fd, ev::READ);
+    _io_watcher.set<I3ipc, &I3ipc::ipc_cb>(this);
+    _io_watcher.set(_loop);
+    _io_watcher.start();
+
+    subscribe();
+    get_workspaces();
+    ::render()->update();
 }
 
 int I3ipc::open_ipc_socket()
@@ -117,7 +152,8 @@ int I3ipc::open_ipc_socket()
     strncpy(addr.sun_path, _i3sock_path.c_str(), sizeof(addr.sun_path) - 1);
 
     if (connect(fd, reinterpret_cast<sockaddr*>(&addr), sizeof(struct sockaddr_un))) {
-        throw Error("Unable to connect", errno);
+        close(fd);
+        return -1;
     }
 
     int flags = fcntl(fd, F_GETFL, NULL);
@@ -127,6 +163,18 @@ int I3ipc::open_ipc_socket()
     fcntl(fd, F_SETFL, flags);
 
     return fd;
+}
+
+void I3ipc::reconnect_socket()
+{
+    _io_watcher.stop();
+    close(_io_watcher.fd);
+    _io_watcher.fd = -1;
+
+    _disconnected_timer.set(0.0, 1.0);
+    _disconnected_timer.set<I3ipc, &I3ipc::timer_cb>(this);
+    _disconnected_timer.set(_loop);
+    _disconnected_timer.start();
 }
 
 void I3ipc::subscribe()
@@ -174,6 +222,8 @@ void I3ipc::workspace_msg()
 {
     std::unique_ptr<cJSON, cJSON_Deleter> body(cJSON_Parse(_body.c_str()));
     cJSON *at;
+
+    _workspaces.clear();
 
     cJSON_ArrayForEach(at, body.get()) {
         std::string name(cJSON_GetStringValue(cJSON_GetObjectItem(at, "name")));
