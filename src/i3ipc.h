@@ -16,6 +16,8 @@ public:
 
     virtual std::string name() const override;
     virtual std::string render() const override;
+    virtual bool add_commands(std::vector<std::string> &cmds) const override;
+    virtual bool handle_command(const std::string &cmd) override;
 
 private:
     ev::loop_ref _loop;
@@ -50,6 +52,7 @@ private:
     void subscribe_msg();
 
     void sort_workspaces();
+    void send_i3_cmd(const std::string &cmd);
 
     struct Workspace {
         uint32_t num;

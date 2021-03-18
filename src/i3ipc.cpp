@@ -46,14 +46,32 @@ std::string I3ipc::render() const
 
     for (auto &w : _workspaces) {
         if (w.active) {
-            ss << button(std::to_string(w.num), "ws", dark0_hard, bright_green);
+            ss << button(std::to_string(w.num), "ws-" + std::to_string(w.num), dark0_hard, bright_green);
         } else {
-            ss << button(std::to_string(w.num), "ws", dark0_hard, foreground);
+            ss << button(std::to_string(w.num), "ws-" + std::to_string(w.num), dark0_hard, foreground);
         }
         ss << " ";
     }
 
     return ss.str();
+}
+
+bool I3ipc::add_commands(std::vector<std::string> &cmds) const
+{
+    cmds.push_back("ws");
+
+    return true;
+}
+
+bool I3ipc::handle_command(const std::string &cmd)
+{
+    std::string i3_cmd = "workspace number ";
+
+    i3_cmd += cmd.substr(cmd.find("-") + 1);
+
+    send_i3_cmd(i3_cmd);
+
+    return true;
 }
 
 void I3ipc::ipc_cb(ev::io &i, int revents)
@@ -301,6 +319,18 @@ void I3ipc::subscribe_msg()
 void I3ipc::sort_workspaces()
 {
     _workspaces.sort(&I3ipc::workspace_less);
+}
+
+void I3ipc::send_i3_cmd(const std::string &cmd)
+{
+    i3_ipc_header *msg = reinterpret_cast<i3_ipc_header*>(alloca(sizeof(i3_ipc_header) + cmd.size()));
+
+    memcpy(&msg->magic, I3_IPC_MAGIC, sizeof(msg->magic));
+    msg->size = cmd.size();
+    msg->type = I3_IPC_MESSAGE_TYPE_COMMAND;
+    memcpy(&(msg[1]), cmd.data(), cmd.size());
+
+    write_all(_io_watcher.fd, msg, sizeof(i3_ipc_header) + cmd.size());
 }
 
 bool I3ipc::workspace_less(const I3ipc::Workspace &a, const I3ipc::Workspace &b)

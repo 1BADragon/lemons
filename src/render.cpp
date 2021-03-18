@@ -11,7 +11,7 @@ static const char *lemonbar_args[] = {
     "-f", "Font Awesome 5 Free:size=16",
     "-f", "Font Awesome 5 Brands:size=16",
     "-f", "Font Awesome 5 Free Solid:size=16",
-    "-f", "Source Code Pro:size=14",
+    "-f", "Syne Mono:size=16",
     "-f", "Roboto Medium:size=16",
     "-B", background,
     "-a", "15",
@@ -104,7 +104,7 @@ void Render::draw_standard()
 
     //std::clog << render_str;
 
-    _lemonbar.write({render_str.begin(), render_str.end()});
+    _lemonbar.write(render_str);
 }
 
 void Render::draw_dialog()

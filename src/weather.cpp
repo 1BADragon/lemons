@@ -25,6 +25,7 @@ std::unordered_map<std::string, const char *> icons = {
     {"Partly Cloudy", cloud_sun},
     {"Mostly Cloudy", cloud_sun},
     {"Mostly Clear", sunny},
+    {"Clear", sunny},
     {"Cloudy", cloud},
     {"Light Rain", cloud_rain},
 };
